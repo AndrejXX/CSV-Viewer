@@ -37,9 +37,14 @@ jobs:
           npx cap add android
           npx cap sync android
 
-      - name: Generiranje ikona aplikacije iz icon.svg
+      - name: Generiranje ikona aplikacije
         run: |
           sudo apt-get update && sudo apt-get install -y librsvg2-bin
+          if [ ! -f icon.svg ] && [ -f www/icon.svg ]; then
+            cp www/icon.svg icon.svg
+          elif [ ! -f icon.svg ]; then
+            echo '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512"><defs><linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#4f46e5"/><stop offset="100%" stop-color="#0284c7"/></linearGradient><linearGradient id="badgeGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#10b981"/><stop offset="100%" stop-color="#059669"/></linearGradient></defs><rect width="512" height="512" rx="112" fill="url(#bgGrad)"/><rect x="96" y="108" width="276" height="296" rx="28" fill="#ffffff" fill-opacity="0.96"/><rect x="96" y="108" width="276" height="68" rx="28" fill="#e0e7ff"/><rect x="96" y="148" width="276" height="28" fill="#e0e7ff"/><line x1="188" y1="108" x2="188" y2="404" stroke="#c7d2fe" stroke-width="8"/><line x1="280" y1="108" x2="280" y2="404" stroke="#c7d2fe" stroke-width="8"/><line x1="96" y1="234" x2="372" y2="234" stroke="#e2e8f0" stroke-width="8"/><line x1="96" y1="292" x2="372" y2="292" stroke="#e2e8f0" stroke-width="8"/><line x1="96" y1="350" x2="372" y2="350" stroke="#e2e8f0" stroke-width="8"/><circle cx="356" cy="348" r="88" fill="url(#badgeGrad)" stroke="#ffffff" stroke-width="14"/><circle cx="346" cy="338" r="30" fill="none" stroke="#ffffff" stroke-width="12"/><line x1="368" y1="360" x2="394" y2="386" stroke="#ffffff" stroke-width="14" stroke-linecap="round"/></svg>' > icon.svg
+          fi
           rm -rf android/app/src/main/res/mipmap-anydpi-v26
           rsvg-convert -w 48 -h 48 icon.svg -o android/app/src/main/res/mipmap-mdpi/ic_launcher.png
           rsvg-convert -w 72 -h 72 icon.svg -o android/app/src/main/res/mipmap-hdpi/ic_launcher.png
@@ -49,7 +54,6 @@ jobs:
           for dir in mipmap-mdpi mipmap-hdpi mipmap-xhdpi mipmap-xxhdpi mipmap-xxxhdpi; do
             cp android/app/src/main/res/$dir/ic_launcher.png android/app/src/main/res/$dir/ic_launcher_round.png
           done
-          
 
       - name: Kompajliranje Android APK datoteke
         run: |
