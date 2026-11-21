@@ -1,0 +1,9 @@
+{
+  "appId": "hr.csvpreglednik.app",
+  "appName": "CSV Preglednik",
+  "webDir": "www",
+  "bundledWebRuntime": false,
+  "android": {
+    "allowMixedContent": true
+  }
+}
