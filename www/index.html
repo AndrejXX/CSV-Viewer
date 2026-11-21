@@ -1,0 +1,1033 @@
+<!DOCTYPE html>
+<html lang="hr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#4f46e5" />
+  <title>CSV Preglednik</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%234f46e5'/%3E%3Cstop offset='100%25' stop-color='%230284c7'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='512' height='512' rx='112' fill='url(%23g)'/%3E%3Crect x='96' y='108' width='276' height='296' rx='28' fill='%23fff'/%3E%3Ccircle cx='356' cy='348' r='88' fill='%2310b981' stroke='%23fff' stroke-width='14'/%3E%3C/svg%3E" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/pdfmake.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/vfs_fonts.min.js"></script>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --surface-alt: #f1f5f9;
+      --border: #e2e8f0;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --primary: #4f46e5;
+      --primary-hover: #4338ca;
+      --primary-soft: #eef2ff;
+      --accent: #10b981;
+      --highlight-bg: #fef08a;
+      --highlight-text: #854d0e;
+      --shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
+    }
+
+    [data-theme="dark"] {
+      --bg: #0b1120;
+      --surface: #111827;
+      --surface-alt: #1e293b;
+      --border: #334155;
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --primary: #6366f1;
+      --primary-hover: #818cf8;
+      --primary-soft: rgba(99, 102, 241, 0.16);
+      --accent: #10b981;
+      --highlight-bg: #854d0e;
+      --highlight-text: #fef9c3;
+      --shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      min-height: 100vh;
+      padding-top: env(safe-area-inset-top);
+      padding-bottom: env(safe-area-inset-bottom);
+      transition: background 0.2s ease, color 0.2s ease;
+    }
+
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 18px;
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      box-shadow: var(--shadow);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand svg {
+      width: 36px;
+      height: 36px;
+      flex-shrink: 0;
+    }
+
+    .brand h1 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+
+    .brand span {
+      display: block;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .header-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+
+    button, select, input[type="text"] {
+      font: inherit;
+      color: var(--text);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      padding: 8px 12px;
+      font-size: 0.875rem;
+      transition: all 0.15s ease;
+    }
+
+    button {
+      cursor: pointer;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    button:hover:not(:disabled) {
+      border-color: var(--primary);
+      background: var(--surface-alt);
+    }
+
+    button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: #ffffff;
+      border-color: var(--primary);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: var(--primary-hover);
+      border-color: var(--primary-hover);
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+
+    .dropzone {
+      border: 2px dashed var(--border);
+      border-radius: 16px;
+      background: var(--surface);
+      padding: 44px 20px;
+      text-align: center;
+      margin-top: 24px;
+      transition: all 0.2s ease;
+      box-shadow: var(--shadow);
+    }
+
+    .dropzone.dragover {
+      border-color: var(--primary);
+      background: var(--primary-soft);
+    }
+
+    .dropzone h2 {
+      font-size: 1.25rem;
+      margin-bottom: 8px;
+    }
+
+    .dropzone p {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      margin-bottom: 20px;
+    }
+
+    .dropzone-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .toolbar {
+      display: none;
+      flex-direction: column;
+      gap: 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 14px;
+      box-shadow: var(--shadow);
+    }
+
+    .toolbar.active {
+      display: flex;
+    }
+
+    .toolbar-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .search-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      flex: 1;
+      min-width: 240px;
+    }
+
+    .search-group input {
+      flex: 1;
+      min-width: 180px;
+    }
+
+    .controls-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .stats {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      align-items: center;
+    }
+
+    .badge {
+      background: var(--primary-soft);
+      color: var(--primary);
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-weight: 600;
+    }
+
+    .pdf-settings {
+      display: none;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
+      align-items: center;
+      font-size: 0.85rem;
+    }
+
+    .pdf-settings.open {
+      display: flex;
+    }
+
+    .table-wrap {
+      display: none;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: auto;
+      max-height: calc(100vh - 270px);
+      box-shadow: var(--shadow);
+    }
+
+    .table-wrap.active {
+      display: block;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+      text-align: left;
+    }
+
+    thead th {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: var(--surface-alt);
+      border-bottom: 2px solid var(--border);
+      padding: 11px 14px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      user-select: none;
+    }
+
+    thead th:hover {
+      color: var(--primary);
+    }
+
+    tbody tr {
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+    }
+
+    tbody tr:hover {
+      background: var(--primary-soft);
+    }
+
+    tbody td {
+      padding: 10px 14px;
+      max-width: 300px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    mark {
+      background: var(--highlight-bg);
+      color: var(--highlight-text);
+      padding: 1px 3px;
+      border-radius: 4px;
+    }
+
+    .pagination {
+      display: none;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 12px;
+      font-size: 0.85rem;
+    }
+
+    .pagination.active {
+      display: flex;
+    }
+
+    /* Bočni panel za detalje retka */
+    .drawer-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.5);
+      z-index: 40;
+    }
+
+    .drawer-backdrop.open {
+      display: block;
+    }
+
+    .drawer {
+      position: fixed;
+      top: 0;
+      right: -420px;
+      width: 100%;
+      max-width: 400px;
+      height: 100%;
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      z-index: 50;
+      padding: 20px;
+      overflow-y: auto;
+      transition: right 0.25s ease;
+      box-shadow: -8px 0 24px rgba(0, 0, 0, 0.15);
+    }
+
+    .drawer.open {
+      right: 0;
+    }
+
+    .drawer-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 16px;
+    }
+
+    .detail-item {
+      padding: 10px;
+      border-radius: 8px;
+      background: var(--surface-alt);
+      margin-bottom: 10px;
+    }
+
+    .detail-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .detail-val {
+      font-size: 0.92rem;
+      word-break: break-word;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #0f172a;
+      color: #ffffff;
+      padding: 10px 18px;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      z-index: 60;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+
+    .toast.show {
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <svg viewBox="0 0 512 512" aria-hidden="true">
+        <defs>
+          <linearGradient id="hdrGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#4f46e5"/>
+            <stop offset="100%" stop-color="#0284c7"/>
+          </linearGradient>
+        </defs>
+        <rect width="512" height="512" rx="112" fill="url(#hdrGrad)"/>
+        <rect x="96" y="108" width="276" height="296" rx="28" fill="#ffffff"/>
+        <line x1="188" y1="108" x2="188" y2="404" stroke="#c7d2fe" stroke-width="10"/>
+        <line x1="96" y1="220" x2="372" y2="220" stroke="#e2e8f0" stroke-width="10"/>
+        <line x1="96" y1="305" x2="372" y2="305" stroke="#e2e8f0" stroke-width="10"/>
+        <circle cx="356" cy="348" r="88" fill="#10b981" stroke="#ffffff" stroke-width="16"/>
+        <circle cx="346" cy="338" r="30" fill="none" stroke="#ffffff" stroke-width="14"/>
+        <line x1="368" y1="360" x2="394" y2="386" stroke="#ffffff" stroke-width="14" stroke-linecap="round"/>
+      </svg>
+      <div>
+        <h1>CSV Preglednik</h1>
+        <span id="fileSubtitle">Spremno za učitavanje CSV datoteke</span>
+      </div>
+    </div>
+
+    <div class="header-actions">
+      <input type="file" id="fileInput" accept=".csv,text/csv,text/plain,*/*" hidden />
+      <button type="button" class="btn-primary" onclick="document.getElementById('fileInput').click()">📂 Otvori CSV</button>
+      <button type="button" id="btnExportCsv" disabled onclick="exportCsv()">⬇️ Izvezi CSV</button>
+      <button type="button" id="btnExportPdf" disabled onclick="exportPdf()">📄 Izvezi PDF</button>
+      <button type="button" id="btnPdfOptions" disabled onclick="togglePdfSettings()" title="Postavke PDF izvoza">⚙️</button>
+      <button type="button" id="btnTheme" onclick="toggleTheme()">🌙 Tamni način</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="dropzone" id="dropzone">
+      <h2>Povucite i ispustite CSV datoteku ovdje</h2>
+      <p>Podržano automatsko prepoznavanje separatora (, ; Tab |) te UTF-8 i Windows-1250 hrvatskih znakova.</p>
+      <div class="dropzone-actions">
+        <button type="button" class="btn-primary" onclick="document.getElementById('fileInput').click()">Odaberi datoteku s uređaja</button>
+        <button type="button" onclick="loadSampleData()">Učitaj primjer podataka</button>
+      </div>
+    </section>
+
+    <section class="toolbar" id="toolbar">
+      <div class="toolbar-row">
+        <div class="search-group">
+          <input type="text" id="searchInput" placeholder="Pretraži podatke..." oninput="applyFilters()" />
+          <select id="columnFilter" onchange="applyFilters()">
+            <option value="__all__">Svi stupci</option>
+          </select>
+          <button type="button" onclick="clearSearch()">Očisti</button>
+        </div>
+
+        <div class="controls-group">
+          <label>Separator:
+            <select id="delimiterSelect" onchange="reparseBuffer()">
+              <option value="auto">Automatski</option>
+              <option value=",">Zarez (,)</option>
+              <option value=";">Točka-zarez (;)</option>
+              <option value="\t">Tabulator</option>
+              <option value="|">Okomita crta (|)</option>
+            </select>
+          </label>
+          <label>Kodiranje:
+            <select id="encodingSelect" onchange="reparseBuffer()">
+              <option value="auto">Automatski</option>
+              <option value="utf-8">UTF-8</option>
+              <option value="windows-1250">Windows-1250</option>
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <div class="stats">
+        <span>Prikazano redaka: <strong class="badge" id="rowCountBadge">0 / 0</strong></span>
+        <span>Stupaca: <strong id="colCountLabel">0</strong></span>
+        <span>Detektirano: <strong id="detectedMeta">-</strong></span>
+      </div>
+
+      <div class="pdf-settings" id="pdfSettings">
+        <strong>Postavke PDF izvoza:</strong>
+        <label>Orijentacija:
+          <select id="pdfOrientation">
+            <option value="auto">Automatski</option>
+            <option value="landscape">Položeno (Landscape)</option>
+            <option value="portrait">Uspravno (Portrait)</option>
+          </select>
+        </label>
+        <label>Opseg:
+          <select id="pdfScope">
+            <option value="filtered">Trenutno filtrirani redci</option>
+            <option value="all">Svi redci iz datoteke</option>
+          </select>
+        </label>
+        <label>Veličina fonta:
+          <select id="pdfFontSize">
+            <option value="7">7 pt (kompaktno)</option>
+            <option value="8.5" selected>8.5 pt (standardno)</option>
+            <option value="10">10 pt (veće)</option>
+          </select>
+        </label>
+      </div>
+    </section>
+
+    <div class="table-wrap" id="tableWrap">
+      <table>
+        <thead id="tableHead"></thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+
+    <div class="pagination" id="pagination">
+      <div>
+        Redaka po stranici:
+        <select id="pageSizeSelect" onchange="changePageSize()">
+          <option value="25">25</option>
+          <option value="50" selected>50</option>
+          <option value="100">100</option>
+          <option value="250">250</option>
+        </select>
+      </div>
+      <div class="controls-group">
+        <button type="button" id="btnPrevPage" onclick="changePage(-1)">◀ Prethodna</button>
+        <span id="pageInfo">Stranica 1 od 1</span>
+        <button type="button" id="btnNextPage" onclick="changePage(1)">Sljedeća ▶</button>
+      </div>
+    </div>
+  </main>
+
+  <div class="drawer-backdrop" id="drawerBackdrop" onclick="closeDrawer()"></div>
+  <aside class="drawer" id="detailDrawer" aria-label="Detalji retka">
+    <div class="drawer-header">
+      <h3>Detalji retka</h3>
+      <button type="button" onclick="closeDrawer()">✕ Zatvori</button>
+    </div>
+    <div id="drawerContent"></div>
+  </aside>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    let rawBuffer = null;
+    let currentFileName = "podaci.csv";
+    let headers = [];
+    let allRows = [];
+    let filteredRows = [];
+    let sortCol = -1;
+    let sortAsc = true;
+    let currentPage = 1;
+    let pageSize = 50;
+
+    // Tema (Dark / Light)
+    function initTheme() {
+      const saved = localStorage.getItem("csv_theme");
+      const prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+      const theme = saved || (prefersDark ? "dark" : "light");
+      applyTheme(theme);
+    }
+
+    function applyTheme(theme) {
+      document.documentElement.setAttribute("data-theme", theme);
+      localStorage.setItem("csv_theme", theme);
+      const btn = document.getElementById("btnTheme");
+      btn.textContent = theme === "dark" ? "☀️ Svijetli način" : "🌙 Tamni način";
+    }
+
+    function toggleTheme() {
+      const current = document.documentElement.getAttribute("data-theme");
+      applyTheme(current === "dark" ? "light" : "dark");
+    }
+
+    initTheme();
+
+    function showToast(msg) {
+      const t = document.getElementById("toast");
+      t.textContent = msg;
+      t.classList.add("show");
+      setTimeout(() => t.classList.remove("show"), 2600);
+    }
+
+    // Drag & Drop i odabir datoteke
+    const dropzone = document.getElementById("dropzone");
+    const fileInput = document.getElementById("fileInput");
+
+    ["dragenter", "dragover"].forEach(evt => {
+      document.body.addEventListener(evt, e => {
+        e.preventDefault();
+        dropzone.classList.add("dragover");
+      });
+    });
+
+    ["dragleave", "drop"].forEach(evt => {
+      document.body.addEventListener(evt, e => {
+        e.preventDefault();
+        dropzone.classList.remove("dragover");
+      });
+    });
+
+    document.body.addEventListener("drop", e => {
+      const file = e.dataTransfer && e.dataTransfer.files[0];
+      if (file) readFile(file);
+    });
+
+    fileInput.addEventListener("change", e => {
+      const file = e.target.files[0];
+      if (file) readFile(file);
+    });
+
+    function readFile(file) {
+      currentFileName = file.name;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        rawBuffer = ev.target.result;
+        reparseBuffer();
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function decodeBuffer(buffer, chosenEncoding) {
+      if (chosenEncoding !== "auto") {
+        return {
+          text: new TextDecoder(chosenEncoding).decode(buffer),
+          usedEncoding: chosenEncoding.toUpperCase()
+        };
+      }
+      try {
+        const utf8Text = new TextDecoder("utf-8", { fatal: true }).decode(buffer);
+        return { text: utf8Text, usedEncoding: "UTF-8" };
+      } catch (e) {
+        return {
+          text: new TextDecoder("windows-1250").decode(buffer),
+          usedEncoding: "Windows-1250"
+        };
+      }
+    }
+
+    function detectDelimiter(sampleText) {
+      const candidates = [",", ";", "\t", "|"];
+      const firstLines = sampleText.split(/\r?\n/).slice(0, 5).join("\n");
+      let best = ",";
+      let maxCount = -1;
+      for (const c of candidates) {
+        const count = firstLines.split(c).length - 1;
+        if (count > maxCount) {
+          maxCount = count;
+          best = c;
+        }
+      }
+      return best;
+    }
+
+    function parseCsv(text, delimiter) {
+      const rows = [];
+      let row = [];
+      let field = "";
+      let inQuotes = false;
+
+      for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        const next = text[i + 1];
+
+        if (inQuotes) {
+          if (ch === '"' && next === '"') {
+            field += '"';
+            i++;
+          } else if (ch === '"') {
+            inQuotes = false;
+          } else {
+            field += ch;
+          }
+        } else {
+          if (ch === '"') {
+            inQuotes = true;
+          } else if (ch === delimiter) {
+            row.push(field.trim());
+            field = "";
+          } else if (ch === "\r" && next === "\n") {
+            row.push(field.trim());
+            rows.push(row);
+            row = [];
+            field = "";
+            i++;
+          } else if (ch === "\n" || ch === "\r") {
+            row.push(field.trim());
+            rows.push(row);
+            row = [];
+            field = "";
+          } else {
+            field += ch;
+          }
+        }
+      }
+
+      if (field.length > 0 || row.length > 0) {
+        row.push(field.trim());
+        rows.push(row);
+      }
+
+      return rows.filter(r => r.some(cell => cell !== ""));
+    }
+
+    function reparseBuffer() {
+      if (!rawBuffer) return;
+      const encChoice = document.getElementById("encodingSelect").value;
+      const delChoice = document.getElementById("delimiterSelect").value;
+
+      const { text, usedEncoding } = decodeBuffer(rawBuffer, encChoice);
+      const cleanText = text.replace(/^\uFEFF/, "");
+      const usedDelimiter = delChoice === "auto" ? detectDelimiter(cleanText) : (delChoice === "\\t" ? "\t" : delChoice);
+
+      const parsed = parseCsv(cleanText, usedDelimiter);
+      if (parsed.length === 0) {
+        showToast("Datoteka je prazna ili nečitljiva.");
+        return;
+      }
+
+      headers = parsed[0].map((h, idx) => h || `Stupac ${idx + 1}`);
+      allRows = parsed.slice(1).map(r => {
+        const normalized = new Array(headers.length).fill("");
+        for (let i = 0; i < headers.length; i++) normalized[i] = r[i] ?? "";
+        return normalized;
+      });
+
+      sortCol = -1;
+      sortAsc = true;
+      currentPage = 1;
+
+      const colSelect = document.getElementById("columnFilter");
+      colSelect.innerHTML = '<option value="__all__">Svi stupci</option>';
+      headers.forEach((h, i) => {
+        const opt = document.createElement("option");
+        opt.value = i;
+        opt.textContent = h;
+        colSelect.appendChild(opt);
+      });
+
+      const delLabel = usedDelimiter === "\t" ? "Tab" : `"${usedDelimiter}"`;
+      document.getElementById("detectedMeta").textContent = `${usedEncoding} | separator ${delLabel}`;
+      document.getElementById("colCountLabel").textContent = headers.length;
+      document.getElementById("fileSubtitle").textContent = currentFileName;
+
+      dropzone.style.display = "none";
+      document.getElementById("toolbar").classList.add("active");
+      document.getElementById("tableWrap").classList.add("active");
+      document.getElementById("pagination").classList.add("active");
+      document.getElementById("btnExportCsv").disabled = false;
+      document.getElementById("btnExportPdf").disabled = false;
+      document.getElementById("btnPdfOptions").disabled = false;
+
+      applyFilters();
+    }
+
+    function loadSampleData() {
+      const sampleCsv = [
+        "ID;Ime i prezime;Odjel;Grad;Plaća (EUR);Status",
+        "101;Ana Kovačić;Razvoj softvera;Zagreb;2450,00;Aktivan",
+        "102;Marko Horvat;Prodaja i marketing;Split;1890,50;Aktivan",
+        "103;Ivana Babić;Financije i računovodstvo;Rijeka;2120,00;Na godišnjem",
+        "104;Petar Šimić;Korisnička podrška;Osijek;1540,00;Aktivan",
+        "105;Lucija Župan;Ljudski resursi;Zadar;1950,75;Aktivan",
+        "106;Tomislav Đurić;Logistika;Varaždin;1680,00;Na bolovanju",
+        "107;Maja Čović;Analitika podataka;Zagreb;2600,00;Aktivan"
+      ].join("\n");
+
+      currentFileName = "primjer_zaposlenici.csv";
+      rawBuffer = new TextEncoder().encode(sampleCsv).buffer;
+      reparseBuffer();
+      showToast("Učitani su ogledni podaci.");
+    }
+
+    function applyFilters() {
+      const query = document.getElementById("searchInput").value.trim().toLowerCase();
+      const colVal = document.getElementById("columnFilter").value;
+
+      filteredRows = allRows.filter(row => {
+        if (!query) return true;
+        if (colVal === "__all__") {
+          return row.some(cell => cell.toLowerCase().includes(query));
+        }
+        const idx = Number(colVal);
+        return (row[idx] || "").toLowerCase().includes(query);
+      });
+
+      if (sortCol >= 0) {
+        sortRows();
+      }
+
+      currentPage = 1;
+      renderTable();
+    }
+
+    function clearSearch() {
+      document.getElementById("searchInput").value = "";
+      document.getElementById("columnFilter").value = "__all__";
+      applyFilters();
+    }
+
+    function toggleSort(colIndex) {
+      if (sortCol === colIndex) {
+        sortAsc = !sortAsc;
+      } else {
+        sortCol = colIndex;
+        sortAsc = true;
+      }
+      sortRows();
+      renderTable();
+    }
+
+    function sortRows() {
+      filteredRows.sort((a, b) => {
+        const valA = a[sortCol] || "";
+        const valB = b[sortCol] || "";
+        const numA = parseFloat(valA.replace(/\./g, "").replace(",", "."));
+        const numB = parseFloat(valB.replace(/\./g, "").replace(",", "."));
+        let cmp = 0;
+        if (!isNaN(numA) && !isNaN(numB) && /^[\d.,\s+-]+$/.test(valA) && /^[\d.,\s+-]+$/.test(valB)) {
+          cmp = numA - numB;
+        } else {
+          cmp = valA.localeCompare(valB, "hr", { sensitivity: "base" });
+        }
+        return sortAsc ? cmp : -cmp;
+      });
+    }
+
+    function escapeHtml(str) {
+      return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function highlightMatch(text, query) {
+      const safe = escapeHtml(text);
+      if (!query) return safe;
+      const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      return safe.replace(new RegExp(`(${escapedQuery})`, "gi"), "<mark>$1</mark>");
+    }
+
+    function renderTable() {
+      const thead = document.getElementById("tableHead");
+      const tbody = document.getElementById("tableBody");
+      const query = document.getElementById("searchInput").value.trim();
+
+      thead.innerHTML = "";
+      const trHead = document.createElement("tr");
+      headers.forEach((h, idx) => {
+        const th = document.createElement("th");
+        const arrow = sortCol === idx ? (sortAsc ? " ▲" : " ▼") : "";
+        th.textContent = h + arrow;
+        th.onclick = () => toggleSort(idx);
+        trHead.appendChild(th);
+      });
+      thead.appendChild(trHead);
+
+      const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
+      if (currentPage > totalPages) currentPage = totalPages;
+
+      const start = (currentPage - 1) * pageSize;
+      const slice = filteredRows.slice(start, start + pageSize);
+
+      tbody.innerHTML = "";
+      slice.forEach(row => {
+        const tr = document.createElement("tr");
+        tr.onclick = () => openDrawer(row);
+        row.forEach(cell => {
+          const td = document.createElement("td");
+          td.innerHTML = highlightMatch(cell, query);
+          td.title = cell;
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+
+      document.getElementById("rowCountBadge").textContent = `${filteredRows.length} / ${allRows.length}`;
+      document.getElementById("pageInfo").textContent = `Stranica ${currentPage} od ${totalPages}`;
+      document.getElementById("btnPrevPage").disabled = currentPage <= 1;
+      document.getElementById("btnNextPage").disabled = currentPage >= totalPages;
+    }
+
+    function changePage(delta) {
+      currentPage += delta;
+      renderTable();
+    }
+
+    function changePageSize() {
+      pageSize = Number(document.getElementById("pageSizeSelect").value);
+      currentPage = 1;
+      renderTable();
+    }
+
+    function openDrawer(row) {
+      const content = document.getElementById("drawerContent");
+      content.innerHTML = "";
+      headers.forEach((h, i) => {
+        const div = document.createElement("div");
+        div.className = "detail-item";
+        div.innerHTML = `
+          <div class="detail-label">${escapeHtml(h)}</div>
+          <div class="detail-val">${escapeHtml(row[i] || "—")}</div>
+        `;
+        content.appendChild(div);
+      });
+      document.getElementById("drawerBackdrop").classList.add("open");
+      document.getElementById("detailDrawer").classList.add("open");
+    }
+
+    function closeDrawer() {
+      document.getElementById("drawerBackdrop").classList.remove("open");
+      document.getElementById("detailDrawer").classList.remove("open");
+    }
+
+    function exportCsv() {
+      const escapeCell = val => `"${String(val).replace(/"/g, '""')}"`;
+      const lines = [
+        headers.map(escapeCell).join(";"),
+        ...filteredRows.map(r => r.map(escapeCell).join(";"))
+      ];
+      const csvContent = "\uFEFF" + lines.join("\r\n");
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = currentFileName.replace(/\.csv$/i, "") + "_filtrirano.csv";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast("CSV datoteka je izvezena.");
+    }
+
+    function togglePdfSettings() {
+      document.getElementById("pdfSettings").classList.toggle("open");
+    }
+
+    function exportPdf() {
+      if (typeof pdfMake === "undefined") {
+        showToast("PDF biblioteka nije učitana (provjerite internetsku vezu).");
+        return;
+      }
+
+      const orientationChoice = document.getElementById("pdfOrientation").value;
+      const scopeChoice = document.getElementById("pdfScope").value;
+      const fontSize = parseFloat(document.getElementById("pdfFontSize").value) || 8.5;
+      const rowsToExport = scopeChoice === "all" ? allRows : filteredRows;
+
+      const orientation = orientationChoice === "auto"
+        ? (headers.length > 5 ? "landscape" : "portrait")
+        : orientationChoice;
+
+      const body = [
+        headers.map(h => ({ text: h, style: "tableHeader" })),
+        ...rowsToExport.map((r, idx) =>
+          r.map(cell => ({
+            text: cell || "",
+            fillColor: idx % 2 === 1 ? "#f8fafc" : null
+          }))
+        )
+      ];
+
+      const docDefinition = {
+        pageOrientation: orientation,
+        pageMargins: [24, 36, 24, 32],
+        footer: (currentPage, pageCount) => ({
+          text: `Stranica ${currentPage} od ${pageCount}`,
+          alignment: "right",
+          fontSize: 8,
+          color: "#64748b",
+          margin: [0, 8, 24, 0]
+        }),
+        content: [
+          { text: currentFileName, style: "title" },
+          {
+            text: `Datum izvoza: ${new Date().toLocaleString("hr-HR")}  |  Ukupno redaka: ${rowsToExport.length}`,
+            style: "subtitle"
+          },
+          {
+            table: {
+              headerRows: 1,
+              widths: headers.map(() => "*"),
+              body
+            },
+            layout: {
+              hLineColor: () => "#cbd5e1",
+              vLineColor: () => "#e2e8f0",
+              paddingLeft: () => 5,
+              paddingRight: () => 5,
+              paddingTop: () => 4,
+              paddingBottom: () => 4
+            }
+          }
+        ],
+        styles: {
+          title: { fontSize: 14, bold: true, color: "#0f172a", margin: [0, 0, 0, 2] },
+          subtitle: { fontSize: 8.5, color: "#475569", margin: [0, 0, 0, 12] },
+          tableHeader: { bold: true, color: "#ffffff", fillColor: "#4f46e5" }
+        },
+        defaultStyle: {
+          font: "Roboto",
+          fontSize
+        }
+      };
+
+      const pdfName = currentFileName.replace(/\.csv$/i, "") + ".pdf";
+      pdfMake.createPdf(docDefinition).download(pdfName);
+      showToast("PDF dokument se preuzima...");
+    }
+  </script>
+</body>
+</html>
