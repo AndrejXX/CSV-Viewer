@@ -7,8 +7,6 @@
   <title>CSV Preglednik</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%234f46e5'/%3E%3Cstop offset='100%25' stop-color='%230284c7'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='512' height='512' rx='112' fill='url(%23g)'/%3E%3Crect x='96' y='108' width='276' height='296' rx='28' fill='%23fff'/%3E%3Ccircle cx='356' cy='348' r='88' fill='%2310b981' stroke='%23fff' stroke-width='14'/%3E%3C/svg%3E" />
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/pdfmake.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.10/vfs_fonts.min.js"></script>
   <style>
     :root {
       --bg: #f8fafc;
@@ -246,20 +244,6 @@
       font-weight: 600;
     }
 
-    .pdf-settings {
-      display: none;
-      flex-wrap: wrap;
-      gap: 10px;
-      padding-top: 10px;
-      border-top: 1px solid var(--border);
-      align-items: center;
-      font-size: 0.85rem;
-    }
-
-    .pdf-settings.open {
-      display: flex;
-    }
-
     .table-wrap {
       display: none;
       background: var(--surface);
@@ -313,6 +297,12 @@
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+
+    tbody td.price-col {
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      color: var(--primary);
     }
 
     mark {
@@ -447,9 +437,6 @@
     <div class="header-actions">
       <input type="file" id="fileInput" accept=".csv,text/csv,text/plain,*/*" hidden />
       <button type="button" class="btn-primary" onclick="document.getElementById('fileInput').click()">📂 Otvori CSV</button>
-      <button type="button" id="btnExportCsv" disabled onclick="exportCsv()">⬇️ Izvezi CSV</button>
-      <button type="button" id="btnExportPdf" disabled onclick="exportPdf()">📄 Izvezi PDF</button>
-      <button type="button" id="btnPdfOptions" disabled onclick="togglePdfSettings()" title="Postavke PDF izvoza">⚙️</button>
       <button type="button" id="btnTheme" onclick="toggleTheme()">🌙 Tamni način</button>
     </div>
   </header>
@@ -499,30 +486,6 @@
         <span>Stupaca: <strong id="colCountLabel">0</strong></span>
         <span>Detektirano: <strong id="detectedMeta">-</strong></span>
       </div>
-
-      <div class="pdf-settings" id="pdfSettings">
-        <strong>Postavke PDF izvoza:</strong>
-        <label>Orijentacija:
-          <select id="pdfOrientation">
-            <option value="auto">Automatski</option>
-            <option value="landscape">Položeno (Landscape)</option>
-            <option value="portrait">Uspravno (Portrait)</option>
-          </select>
-        </label>
-        <label>Opseg:
-          <select id="pdfScope">
-            <option value="filtered">Trenutno filtrirani redci</option>
-            <option value="all">Svi redci iz datoteke</option>
-          </select>
-        </label>
-        <label>Veličina fonta:
-          <select id="pdfFontSize">
-            <option value="7">7 pt (kompaktno)</option>
-            <option value="8.5" selected>8.5 pt (standardno)</option>
-            <option value="10">10 pt (veće)</option>
-          </select>
-        </label>
-      </div>
     </section>
 
     <div class="table-wrap" id="tableWrap">
@@ -567,6 +530,7 @@
     let headers = [];
     let allRows = [];
     let filteredRows = [];
+    let retailPriceColIndex = -1;
     let sortCol = -1;
     let sortAsc = true;
     let currentPage = 1;
@@ -722,6 +686,59 @@
       return rows.filter(r => r.some(cell => cell !== ""));
     }
 
+    // Postavljanje stupca maloprodajne cijene odmah do naziva
+    function reorderColumnsNameAndRetailPrice(rawHeaders, rawRows) {
+      const normalized = rawHeaders.map(h => h.toLowerCase().trim());
+
+      const nameIdx = normalized.findIndex(h =>
+        h.includes("naziv") ||
+        h === "artikl" ||
+        h === "proizvod" ||
+        h === "ime" ||
+        h === "ime i prezime" ||
+        h === "name" ||
+        h === "product" ||
+        h === "title"
+      );
+
+      let priceIdx = normalized.findIndex(h =>
+        h.includes("maloprodajn") ||
+        h === "mpc" ||
+        h.startsWith("mpc ") ||
+        h.startsWith("mpc(") ||
+        h.includes("retail")
+      );
+
+      if (priceIdx === -1) {
+        priceIdx = normalized.findIndex(h =>
+          (h.includes("cijena") || h.includes("price")) &&
+          !h.includes("nabavn") &&
+          !h.includes("veleprodajn") &&
+          !h.includes("vpc") &&
+          !h.includes("wholesale") &&
+          !h.includes("purchase")
+        );
+      }
+
+      if (nameIdx !== -1 && priceIdx !== -1 && nameIdx !== priceIdx) {
+        const order = rawHeaders.map((_, i) => i).filter(i => i !== priceIdx);
+        const newNamePos = order.indexOf(nameIdx);
+        order.splice(newNamePos + 1, 0, priceIdx);
+
+        return {
+          headers: order.map(i => rawHeaders[i]),
+          rows: rawRows.map(r => order.map(i => r[i] ?? "")),
+          priceColIndex: newNamePos + 1
+        };
+      }
+
+      return {
+        headers: rawHeaders,
+        rows: rawRows,
+        priceColIndex: priceIdx
+      };
+    }
+
     function reparseBuffer() {
       if (!rawBuffer) return;
       const encChoice = document.getElementById("encodingSelect").value;
@@ -737,12 +754,17 @@
         return;
       }
 
-      headers = parsed[0].map((h, idx) => h || `Stupac ${idx + 1}`);
-      allRows = parsed.slice(1).map(r => {
-        const normalized = new Array(headers.length).fill("");
-        for (let i = 0; i < headers.length; i++) normalized[i] = r[i] ?? "";
+      const initialHeaders = parsed[0].map((h, idx) => h || `Stupac ${idx + 1}`);
+      const initialRows = parsed.slice(1).map(r => {
+        const normalized = new Array(initialHeaders.length).fill("");
+        for (let i = 0; i < initialHeaders.length; i++) normalized[i] = r[i] ?? "";
         return normalized;
       });
+
+      const reordered = reorderColumnsNameAndRetailPrice(initialHeaders, initialRows);
+      headers = reordered.headers;
+      allRows = reordered.rows;
+      retailPriceColIndex = reordered.priceColIndex;
 
       sortCol = -1;
       sortAsc = true;
@@ -766,26 +788,23 @@
       document.getElementById("toolbar").classList.add("active");
       document.getElementById("tableWrap").classList.add("active");
       document.getElementById("pagination").classList.add("active");
-      document.getElementById("btnExportCsv").disabled = false;
-      document.getElementById("btnExportPdf").disabled = false;
-      document.getElementById("btnPdfOptions").disabled = false;
 
       applyFilters();
     }
 
     function loadSampleData() {
       const sampleCsv = [
-        "ID;Ime i prezime;Odjel;Grad;Plaća (EUR);Status",
-        "101;Ana Kovačić;Razvoj softvera;Zagreb;2450,00;Aktivan",
-        "102;Marko Horvat;Prodaja i marketing;Split;1890,50;Aktivan",
-        "103;Ivana Babić;Financije i računovodstvo;Rijeka;2120,00;Na godišnjem",
-        "104;Petar Šimić;Korisnička podrška;Osijek;1540,00;Aktivan",
-        "105;Lucija Župan;Ljudski resursi;Zadar;1950,75;Aktivan",
-        "106;Tomislav Đurić;Logistika;Varaždin;1680,00;Na bolovanju",
-        "107;Maja Čović;Analitika podataka;Zagreb;2600,00;Aktivan"
+        "Šifra;Naziv artikla;Kategorija;Zaliha;Maloprodajna cijena (EUR);Status",
+        "ART-101;Bežični miš Logitech MX;Periferija;24;89,90;Dostupno",
+        "ART-102;Mehanička tipkovnica RGB;Periferija;15;119,00;Dostupno",
+        "ART-103;Monitor 27\" IPS 144Hz;Monitori;8;279,50;Dostupno",
+        "ART-104;USB-C Hub 7-u-1;Dodatna oprema;42;34,99;Dostupno",
+        "ART-105;Slušalice s mikrofonom;Audio;19;64,50;Dostupno",
+        "ART-106;SSD NVMe 1TB;Pohrana podataka;31;79,00;Dostupno",
+        "ART-107;Web kamera Full HD;Video;0;49,90;Nema na zalihi"
       ].join("\n");
 
-      currentFileName = "primjer_zaposlenici.csv";
+      currentFileName = "primjer_cjenik.csv";
       rawBuffer = new TextEncoder().encode(sampleCsv).buffer;
       reparseBuffer();
       showToast("Učitani su ogledni podaci.");
@@ -886,8 +905,11 @@
       slice.forEach(row => {
         const tr = document.createElement("tr");
         tr.onclick = () => openDrawer(row);
-        row.forEach(cell => {
+        row.forEach((cell, colIdx) => {
           const td = document.createElement("td");
+          if (colIdx === retailPriceColIndex) {
+            td.className = "price-col";
+          }
           td.innerHTML = highlightMatch(cell, query);
           td.title = cell;
           tr.appendChild(td);
@@ -931,102 +953,6 @@
     function closeDrawer() {
       document.getElementById("drawerBackdrop").classList.remove("open");
       document.getElementById("detailDrawer").classList.remove("open");
-    }
-
-    function exportCsv() {
-      const escapeCell = val => `"${String(val).replace(/"/g, '""')}"`;
-      const lines = [
-        headers.map(escapeCell).join(";"),
-        ...filteredRows.map(r => r.map(escapeCell).join(";"))
-      ];
-      const csvContent = "\uFEFF" + lines.join("\r\n");
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = currentFileName.replace(/\.csv$/i, "") + "_filtrirano.csv";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      showToast("CSV datoteka je izvezena.");
-    }
-
-    function togglePdfSettings() {
-      document.getElementById("pdfSettings").classList.toggle("open");
-    }
-
-    function exportPdf() {
-      if (typeof pdfMake === "undefined") {
-        showToast("PDF biblioteka nije učitana (provjerite internetsku vezu).");
-        return;
-      }
-
-      const orientationChoice = document.getElementById("pdfOrientation").value;
-      const scopeChoice = document.getElementById("pdfScope").value;
-      const fontSize = parseFloat(document.getElementById("pdfFontSize").value) || 8.5;
-      const rowsToExport = scopeChoice === "all" ? allRows : filteredRows;
-
-      const orientation = orientationChoice === "auto"
-        ? (headers.length > 5 ? "landscape" : "portrait")
-        : orientationChoice;
-
-      const body = [
-        headers.map(h => ({ text: h, style: "tableHeader" })),
-        ...rowsToExport.map((r, idx) =>
-          r.map(cell => ({
-            text: cell || "",
-            fillColor: idx % 2 === 1 ? "#f8fafc" : null
-          }))
-        )
-      ];
-
-      const docDefinition = {
-        pageOrientation: orientation,
-        pageMargins: [24, 36, 24, 32],
-        footer: (currentPage, pageCount) => ({
-          text: `Stranica ${currentPage} od ${pageCount}`,
-          alignment: "right",
-          fontSize: 8,
-          color: "#64748b",
-          margin: [0, 8, 24, 0]
-        }),
-        content: [
-          { text: currentFileName, style: "title" },
-          {
-            text: `Datum izvoza: ${new Date().toLocaleString("hr-HR")}  |  Ukupno redaka: ${rowsToExport.length}`,
-            style: "subtitle"
-          },
-          {
-            table: {
-              headerRows: 1,
-              widths: headers.map(() => "*"),
-              body
-            },
-            layout: {
-              hLineColor: () => "#cbd5e1",
-              vLineColor: () => "#e2e8f0",
-              paddingLeft: () => 5,
-              paddingRight: () => 5,
-              paddingTop: () => 4,
-              paddingBottom: () => 4
-            }
-          }
-        ],
-        styles: {
-          title: { fontSize: 14, bold: true, color: "#0f172a", margin: [0, 0, 0, 2] },
-          subtitle: { fontSize: 8.5, color: "#475569", margin: [0, 0, 0, 12] },
-          tableHeader: { bold: true, color: "#ffffff", fillColor: "#4f46e5" }
-        },
-        defaultStyle: {
-          font: "Roboto",
-          fontSize
-        }
-      };
-
-      const pdfName = currentFileName.replace(/\.csv$/i, "") + ".pdf";
-      pdfMake.createPdf(docDefinition).download(pdfName);
-      showToast("PDF dokument se preuzima...");
     }
   </script>
 </body>
